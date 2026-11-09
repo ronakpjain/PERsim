@@ -1,0 +1,5 @@
+#pragma once
+namespace persim {
+inline constexpr auto default_network = "@CMAKE_CURRENT_BINARY_DIR@/generated/per-network.json";
+inline constexpr auto source_monorepo = "@PERSIM_MONOREPO_DIR@";
+}

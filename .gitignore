@@ -1,0 +1,14 @@
+# Out-of-source build trees (one per preset/variant)
+/build*/
+/cmake-build-*/
+
+# Local telemetry captures: large raw/parsed logs are not source
+/data/
+
+# Tool and editor leftovers
+__pycache__/
+*.pyc
+.DS_Store
+
+# Generated viewer capture
+/persim.png

@@ -1,0 +1,15 @@
+/** @defgroup physics Vehicle dynamics
+ * @brief Physical coordinates, parameters, contact, and coupled integration.
+ */
+/** @defgroup powertrain Inverters and electrical plant
+ * @brief AMK command/response devices, motor torque, and equivalent pack.
+ */
+/** @defgroup firmware Firmware co-simulation
+ * @brief Sensor encoding, FIL ownership, and causal time coordination.
+ */
+/** @defgroup can CAN codecs and transport
+ * @brief SuperDBC signals and the userspace virtual-CM5 link.
+ */
+/** @defgroup frontend Frontends and telemetry
+ * @brief CLI options, raylib display, and headless/CSV observations.
+ */
