@@ -5,8 +5,11 @@
  */
 #pragma once
 #include "persim/model_components.hpp"
+#include "persim/terrain.hpp"
 #include <Eigen/Geometry>
 #include <array>
+#include <memory>
+#include <string>
 
 /** @brief PERsim models and orchestration; all dynamics use ISO 8855 Z-up. */
 namespace persim {
@@ -14,25 +17,6 @@ namespace persim {
 using Vec3 = Eigen::Vector3d;
 /** @brief Unit quaternion rotating body-frame vectors into world coordinates. */
 using Quat = Eigen::Quaterniond;
-
-/** @brief Select a flat surface or the deterministic bump/low-grip test pad. */
-enum class TerrainKind {
-    flat,           ///< Zero-elevation, unit-grip road.
-    proving_ground  ///< Analytic bump, ramp, ripple, and reduced-grip regions.
-};
-/** @brief Local tangent plane and friction multiplier for a road sample. */
-struct Surface {
-    double height;    ///< World Z at the sampled X,Y, in m.
-    Vec3 normal;      ///< Upward unit normal in world coordinates.
-    double friction;  ///< Dimensionless multiplier on Parameters::friction.
-};
-/** @brief Sample the same road surface used by physics and rendering.
- * @param x World X coordinate, m.
- * @param y World Y coordinate, m.
- * @param kind Selected terrain profile.
- * @return Elevation, normal, and grip; the road has no lateral boundaries.
- */
-Surface surface_at(double x, double y, TerrainKind kind);
 
 /** @brief Driver controls, applied through firmware sensors and mechanical actuators. */
 struct DriverInput {
@@ -97,8 +81,12 @@ struct VehicleTelemetry {
  */
 class Vehicle {
 public:
-    /** @brief Construct a statically preloaded plant; reject invalid mass/inertia. */
-    explicit Vehicle(Parameters parameters = {}, TerrainKind terrain = TerrainKind::proving_ground);
+    /** @brief Construct a statically preloaded plant; reject invalid mass/inertia.
+     * @param parameters Plant parameters and selected tire model.
+     * @param terrain Registered terrain name, e.g. "proving-ground".
+     * @throws std::invalid_argument If parameters or the terrain name are invalid.
+     */
+    explicit Vehicle(Parameters parameters = {}, const std::string& terrain = "proving-ground");
     /** @brief Relax the source spring/contact system to a stationary initial ride state.
      * @param ground_position World X,Y and an optional additional vertical offset, m.
      * @param heading Initial yaw about world +Z, rad.
@@ -122,7 +110,7 @@ public:
      */
     VehicleState& initial_state() { return state_; }
     /** @brief Return the selected road profile. */
-    TerrainKind terrain() const { return terrain_; }
+    const TerrainModel& terrain() const { return *terrain_; }
     /** @brief Access source sensor/drivetrain adapters without advancing the plant. */
     const ModelComponents& components() const { return models_; }
     /** @brief Return mechanical kinetic + gravitational + spring/tire energy, J.
@@ -134,7 +122,7 @@ public:
 private:
     Parameters parameters_;
     ModelComponents models_;
-    TerrainKind terrain_;
+    std::unique_ptr<const TerrainModel> terrain_;
     VehicleState state_;
     VehicleTelemetry telemetry_;
     Eigen::Matrix3d sprung_inertia_;

@@ -17,6 +17,7 @@ struct Options {
     bool verify = false;        ///< Require scenario success rather than finite state alone.
     bool realtime = false;      ///< Pace headless execution; always enabled for external TV.
     bool help = false;          ///< Print usage without loading the plant.
+    bool list_models = false;   ///< Print registered tire/terrain models and exit.
     double duration = 0;        ///< Simulated seconds; zero means viewer unlimited/headless default.
     std::uint16_t tv_port = 29500; ///< Localhost CAN gateway port.
     std::filesystem::path network; ///< FIL network JSON; defaults to generated current wiring.
@@ -24,7 +25,7 @@ struct Options {
     std::filesystem::path screenshot; ///< Optional final viewer-frame image.
     int frames = 0;             ///< Optional viewer frame limit; zero disables it.
     std::string scenario = "manual"; ///< Driver script name or interactive manual controls.
-    TerrainKind terrain = TerrainKind::proving_ground; ///< Shared physics/display road.
+    std::string terrain = "proving-ground"; ///< Registered terrain name; see persim/terrain.hpp.
 };
 /** @brief Parse and validate arguments, without loading images or opening sockets.
  * @throws std::invalid_argument For unknown, nonfinite, out-of-range, or incompatible options.
@@ -32,6 +33,8 @@ struct Options {
 Options parse_options(int argc, char** argv);
 /** @brief Return the common command-line help text. */
 std::string usage();
+/** @brief Return the registered tire and terrain models with one-line summaries. */
+std::string model_catalog();
 /** @brief Evaluate a deterministic normalized driver script at simulated time in seconds. */
 DriverInput scenario_input(const std::string& scenario, double time);
 }

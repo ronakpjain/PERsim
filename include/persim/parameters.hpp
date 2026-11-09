@@ -6,6 +6,7 @@
 
 #include <Eigen/Core>
 #include <array>
+#include <string>
 
 namespace persim {
 inline constexpr double gravity = 9.81; ///< Standard gravity magnitude, m/s².
@@ -21,20 +22,14 @@ enum WheelIndex {
 /** @brief Stable human-readable wheel names in AMK order. */
 inline constexpr std::array<const char*, 4> wheel_names{"FR", "FL", "RL", "RR"};
 
-/** @brief Available working tire components in modeling-and-simulation. */
-enum class TireModelKind {
-    reduced_mf, ///< Reduced Magic Formula.
-    tanh,       ///< Smooth saturating hyperbolic tangent.
-    linear      ///< Linear stiffness before source friction-circle saturation.
-};
-/** @brief SI-valued geometry and component constants.
+/** @brief SI-valued geometry, component constants, and model selection.
  * @details Presets are read directly from modeling-and-simulation. Source
  * components and explicit overrides are distinguished in @ref reused_models. ISO 8855: +X forward, +Y left, +Z up.
  */
 struct Parameters {
     /** @brief Load source PER27, tire, wheel, coilover, AMK, and aero presets. */
     Parameters();
-    TireModelKind tire_model = TireModelKind::reduced_mf; ///< Selected source tire implementation.
+    std::string tire = "reduced-mf"; ///< Tire model name; see persim/tire.hpp.
     bool sensor_noise = false; ///< Enable explicitly estimated IMU/GPS sample noise.
     double mass; ///< Vehicle plus driver mass, kg; PER27.
     double wheelbase; ///< Axle spacing, m; PER27.

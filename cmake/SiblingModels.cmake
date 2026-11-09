@@ -1,8 +1,11 @@
 # Compile the sibling's components directly, without its Python bindings or demos.
+# Link target: persim_models (rigid-body motion and the AMK geared motor).
 set(PERSIM_MODELING_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../modeling-and-simulation"
     CACHE PATH "PER vehicle component model source checkout")
 if(NOT EXISTS "${PERSIM_MODELING_DIR}/models/vehicle/vehicle.hpp")
-    message(FATAL_ERROR "Set PERSIM_MODELING_DIR to the modeling-and-simulation checkout")
+    message(FATAL_ERROR
+        "Set PERSIM_MODELING_DIR to the modeling-and-simulation checkout "
+        "(default: ${CMAKE_CURRENT_SOURCE_DIR}/../modeling-and-simulation)")
 endif()
 
 # Match the dependency revisions used by modeling-and-simulation/CMakeLists.txt.
@@ -19,6 +22,7 @@ FetchContent_Declare(mp_units
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     SOURCE_SUBDIR src)
 FetchContent_MakeAvailable(mp_units)
+
 add_library(persim_models STATIC
     "${PERSIM_MODELING_DIR}/models/dynamics/rigid_body.cpp"
     "${PERSIM_MODELING_DIR}/models/powertrain/geared_motor.cpp")

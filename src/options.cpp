@@ -4,6 +4,8 @@
  */
 #include "persim/options.hpp"
 #include "persim/build_config.hpp"
+#include "persim/terrain.hpp"
+#include "persim/tire.hpp"
 #include <cmath>
 #include <stdexcept>
 #include <string_view>
@@ -28,15 +30,19 @@ Options parse_options(int argc, char** argv) {
         else if (arg == "--manual-start") result.auto_start = false;
         else if (arg == "--verify") result.verify = true;
         else if (arg == "--realtime") result.realtime = true;
-        else if (arg == "--flat") result.terrain = TerrainKind::flat;
+        else if (arg == "--flat") result.terrain = "flat";
         else if (arg == "--sensor-noise") result.parameters.sensor_noise = true;
         else if (arg == "--tire") {
-            const auto model = value();
-            if (model == "reduced-mf") result.parameters.tire_model = TireModelKind::reduced_mf;
-            else if (model == "tanh") result.parameters.tire_model = TireModelKind::tanh;
-            else if (model == "linear") result.parameters.tire_model = TireModelKind::linear;
-            else throw std::invalid_argument("Unknown tire model: " + model);
+            result.parameters.tire = value();
+            if (!find_tire_model(result.parameters.tire))
+                throw std::invalid_argument("Unknown tire model; expected one of " + tire_model_names());
         }
+        else if (arg == "--terrain") {
+            result.terrain = value();
+            if (!find_terrain(result.terrain))
+                throw std::invalid_argument("Unknown terrain; expected one of " + terrain_names());
+        }
+        else if (arg == "--list-models") result.list_models = true;
         else if (arg == "--help" || arg == "-h") result.help = true;
         else if (arg == "--network") result.network = value();
         else if (arg == "--csv") result.csv = value();
@@ -77,15 +83,26 @@ std::string usage() {
         "  --manual-start         Disable the automatic brake/start sequence\n"
         "  --scenario NAME        manual, idle, acceleration, circle, brake, bumps\n"
         "  --duration SECONDS     Stop at simulated time (headless default: 8)\n"
-        "  --flat                 Flat surface instead of the proving ground\n"
-        "  --tire MODEL           Source tire: reduced-mf (default), tanh, linear\n"
+        "  --terrain NAME         Road profile: " + terrain_names() + " (default proving-ground)\n"
+        "  --flat                 Shorthand for --terrain flat\n"
+        "  --tire NAME            Tire model: " + tire_model_names() + " (default reduced-mf)\n"
         "  --sensor-noise         Enable seeded source-model IMU/GPS sample noise\n"
         "  --csv PATH             Record vehicle and firmware telemetry\n"
         "  --verify               Fail if the selected closed-loop scenario did not work\n"
         "  --realtime             Pace headless execution to wall time\n"
         "  --frames N             Viewer frame limit for bounded capture\n"
         "  --screenshot PATH      Save the viewer's final frame\n"
+        "  --list-models          List tire and terrain models\n"
         "  --help\n";
+}
+std::string model_catalog() {
+    std::string out = "Tire models (--tire):\n";
+    for (const auto& tire : tire_models())
+        out += "  " + std::string(tire.name) + "  " + std::string(tire.summary) + "\n";
+    out += "Terrain profiles (--terrain):\n";
+    for (const auto& terrain : terrains())
+        out += "  " + std::string(terrain.name) + "  " + std::string(terrain.summary) + "\n";
+    return out;
 }
 DriverInput scenario_input(const std::string& scenario, double time) {
     DriverInput input;

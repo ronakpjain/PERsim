@@ -129,10 +129,10 @@ private:
 class Ground {
 public:
     /** @brief Build a terrain mesh from physics height/normal samples. */
-    explicit Ground(TerrainKind kind) {
+    explicit Ground(const TerrainModel& terrain) {
         mesh_ = GenMeshPlane(220, 120, 220, 120);
         for (int i = 0; i < mesh_.vertexCount; ++i) {
-            const auto s = surface_at(mesh_.vertices[3 * i], -mesh_.vertices[3 * i + 2], kind);
+            const auto s = terrain.sample(mesh_.vertices[3 * i], -mesh_.vertices[3 * i + 2]);
             mesh_.vertices[3 * i + 1] = static_cast<float>(s.height);
             const auto n = render(s.normal);
             mesh_.normals[3 * i] = n.x; mesh_.normals[3 * i + 1] = n.y; mesh_.normals[3 * i + 2] = n.z;
@@ -152,39 +152,39 @@ private:
 };
 
 /** @brief Draw an asphalt marking at the physical terrain elevation. */
-void ground_line(Vec3 a, Vec3 b, TerrainKind kind, Color color) {
-    a.z() = surface_at(a.x(), a.y(), kind).height + 0.008;
-    b.z() = surface_at(b.x(), b.y(), kind).height + 0.008;
+void ground_line(Vec3 a, Vec3 b, const TerrainModel& terrain, Color color) {
+    a.z() = terrain.sample(a.x(), a.y()).height + 0.008;
+    b.z() = terrain.sample(b.x(), b.y()).height + 0.008;
     DrawLine3D(render(a), render(b), color);
 }
 /** @brief Non-collidable course cones, lane markings, skidpad, and grip patch. */
-void draw_course(const Ground& ground, const Snapshot& state, TerrainKind kind) {
+void draw_course(const Ground& ground, const Snapshot& state, const TerrainModel& terrain) {
     DrawPlane({0, -0.008f, 0}, {2000, 2000}, asphalt);
     ground.draw();
     const int grid_x = static_cast<int>(std::floor(state.car.position.x() / 5)) * 5;
     const int grid_y = static_cast<int>(std::floor(state.car.position.y() / 5)) * 5;
     for (int d = -60; d <= 60; d += 5) {
-        ground_line(Vec3(grid_x + d, grid_y - 60, 0), Vec3(grid_x + d, grid_y + 60, 0), kind, {58, 67, 69, 255});
-        ground_line(Vec3(grid_x - 60, grid_y + d, 0), Vec3(grid_x + 60, grid_y + d, 0), kind, {58, 67, 69, 255});
+        ground_line(Vec3(grid_x + d, grid_y - 60, 0), Vec3(grid_x + d, grid_y + 60, 0), terrain, {58, 67, 69, 255});
+        ground_line(Vec3(grid_x - 60, grid_y + d, 0), Vec3(grid_x + 60, grid_y + d, 0), terrain, {58, 67, 69, 255});
     }
-    if (kind == TerrainKind::proving_ground) {
+    if (terrain.marked_course()) {
         DrawCube({35, 0.002f, -10}, 20, 0.004f, 8, {62, 78, 83, 255});
         for (double y : {-14.0, -6.0})
-            for (double x = 14; x < 84; x += 0.5) ground_line(Vec3(x, y, 0), Vec3(x + 0.5, y, 0), kind, gold);
+            for (double x = 14; x < 84; x += 0.5) ground_line(Vec3(x, y, 0), Vec3(x + 0.5, y, 0), terrain, gold);
     }
     for (double y : {-3.0, 3.0})
-        for (double x = -10; x < 95; x += 2) ground_line(Vec3(x, y, 0), Vec3(x + 1, y, 0), kind, {173, 177, 164, 255});
+        for (double x = -10; x < 95; x += 2) ground_line(Vec3(x, y, 0), Vec3(x + 1, y, 0), terrain, {173, 177, 164, 255});
     for (int n = 0; n < 2; ++n) {
         const double radius = n == 0 ? 14 : 19;
         for (int i = 0; i < 180; ++i) {
             const double a = 2 * pi * i / 180, b = 2 * pi * (i + 1) / 180;
             ground_line(Vec3(35 + radius * std::cos(a), 30 + radius * std::sin(a), 0),
-                        Vec3(35 + radius * std::cos(b), 30 + radius * std::sin(b), 0), kind, {148, 155, 149, 255});
+                        Vec3(35 + radius * std::cos(b), 30 + radius * std::sin(b), 0), terrain, {148, 155, 149, 255});
         }
     }
     for (int i = 0; i < 36; ++i) {
         const double x = -5 + std::floor(i / 2.0) * 6, y = (i % 2 == 0 ? -1 : 1) * 3.5;
-        const auto p = render(Vec3(x, y, surface_at(x, y, kind).height));
+        const auto p = render(Vec3(x, y, terrain.sample(x, y).height));
         DrawCube(Vector3Add(p, {0, 0.015f, 0}), 0.26f, 0.03f, 0.26f, {20, 25, 25, 255});
         DrawCylinder(Vector3Add(p, {0, 0.03f, 0}), 0.015f, 0.095f, 0.32f, 10, {239, 149, 66, 255});
         DrawCylinder(Vector3Add(p, {0, 0.16f, 0}), 0.044f, 0.062f, 0.065f, 10, white);
@@ -361,6 +361,7 @@ DriverInput read_driver(const Snapshot& state, DriverInput& keyboard, bool tv) {
 /** @brief Create the raylib frontend and join its simulation owner before releasing graphics resources. */
 int run(Options options) {
     if (options.help) { std::cout << usage(); return 0; }
+    if (options.list_models) { std::cout << model_catalog(); return 0; }
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
     InitWindow(1440, 900, "PER / SIM - Vehicle dynamics lab");
     if (!IsWindowReady()) throw std::runtime_error("Raylib window initialization failed");
@@ -368,7 +369,8 @@ int run(Options options) {
     SetTargetFPS(60);
     int result = 0;
     {
-        Ground ground(options.terrain);
+        const auto terrain = make_terrain(options.terrain);
+        Ground ground(*terrain);
         SimulationWorker worker(options);
         Camera3D camera{{-6, 2.5f, 0}, {0, 0.4f, 0}, {0, 1, 0}, 48, CAMERA_PERSPECTIVE};
         int camera_mode = 0, frame = 0;
@@ -413,7 +415,7 @@ int run(Options options) {
             ClearBackground({119, 139, 148, 255});
             DrawRectangleGradientV(0, 0, GetScreenWidth(), GetScreenHeight(), {76, 99, 118, 255}, {179, 192, 192, 255});
             BeginMode3D(camera);
-            draw_course(ground, state, options.terrain);
+            draw_course(ground, state, *terrain);
             for (std::size_t i = 1; i < trail.size(); ++i) DrawLine3D(trail[i - 1], trail[i], {170, 147, 92, 140});
             draw_car(state, forces);
             EndMode3D();

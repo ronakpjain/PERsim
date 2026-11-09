@@ -1,0 +1,39 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Release: viewer + FIL",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {"CMAKE_BUILD_TYPE": "Release"}
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug: viewer + FIL",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug"}
+    },
+    {
+      "name": "headless",
+      "displayName": "Release: headless + FIL",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-headless",
+      "cacheVariables": {"PERSIM_BUILD_VIEWER": "OFF"}
+    },
+    {
+      "name": "standalone",
+      "displayName": "Release: headless without FIL",
+      "inherits": "headless",
+      "binaryDir": "${sourceDir}/build-standalone",
+      "cacheVariables": {"PERSIM_WITH_FIL": "OFF"}
+    }
+  ],
+  "buildPresets": [
+    {"name": "default", "configurePreset": "default"},
+    {"name": "debug", "configurePreset": "debug"},
+    {"name": "headless", "configurePreset": "headless"},
+    {"name": "standalone", "configurePreset": "standalone"}
+  ]
+}

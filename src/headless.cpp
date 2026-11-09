@@ -14,6 +14,7 @@ using namespace persim;
 /** @brief Execute a bounded scenario, stream telemetry, and optionally verify outcomes. */
 int run(Options options) {
     if (options.help) { std::cout << usage(); return 0; }
+    if (options.list_models) { std::cout << model_catalog(); return 0; }
     if (options.duration == 0) options.duration = 8;
     if (options.scenario == "manual") options.scenario = "acceleration";
     std::cout << (options.standalone ? "STANDALONE" : "FIL CLOSED LOOP") << " | "

@@ -3,6 +3,7 @@
  * @ingroup physics
  */
 #include "persim/model_components.hpp"
+#include "persim/tire.hpp"
 #include "persim/vehicle.hpp"
 #include "persim/suspension_db.hpp"
 
@@ -13,9 +14,6 @@
 #include <sensors/gps.hpp>
 #include <sensors/imu.hpp>
 #include <suspension/coilover.hpp>
-#include <tires/linear.hpp>
-#include <tires/reduced_mf.hpp>
-#include <tires/tanh.hpp>
 #include <tires/vertical_tire.hpp>
 #include <vehicle/vehicle.hpp>
 #include <algorithm>
@@ -23,7 +21,6 @@
 #include <cmath>
 #include <random>
 #include <stdexcept>
-#include <variant>
 
 namespace persim {
 namespace {
@@ -110,66 +107,7 @@ SplineValue spline(int wheel, int channel, const Basis& q, const Basis& u) {
     }
     return v;
 }
-/** @brief Expose the source Tire's protected friction coefficient without editing it. */
-template<class Model>
-class RoadTire : public Model {
-public:
-    using Model::Model;
-    /** @brief Read the source Tire's default coefficient before any road override. */
-    double default_coefficient() const { return this->mu; }
-    /** @brief Use the source friction-circle policy with the current local road grip. */
-    Eigen::Vector2d evaluate(double alpha, double kappa, double load, double grip) {
-        this->mu = grip;
-        return siValue(this->getForce(angle(alpha), kappa, force(load)));
-    }
-};
-/** @brief Source tire alternatives, selected once rather than superimposed. */
-using TireVariant = std::variant<RoadTire<ReducedMFTire>, RoadTire<TanhTire>, RoadTire<LinearTire>>;
-/** @brief Construct the requested sibling tire implementation. */
-TireVariant make_tire(const Parameters& p) {
-    if (p.tire_model == TireModelKind::linear)
-        return TireVariant(std::in_place_type<RoadTire<LinearTire>>, corneringStiffness(p.cornering_stiffness), force(p.longitudinal_stiffness));
-    if (p.tire_model == TireModelKind::tanh)
-        return TireVariant(std::in_place_type<RoadTire<TanhTire>>, corneringStiffness(p.cornering_stiffness), force(p.longitudinal_stiffness));
-    const ReducedMFParameters params{corneringStiffness(p.cornering_stiffness), force(p.longitudinal_stiffness), p.tire_shape, p.longitudinal_tire_shape};
-    return TireVariant(std::in_place_type<RoadTire<ReducedMFTire>>, params);
 }
-}
-
-Parameters::Parameters() {
-    mass = siValue(PER27.mass);
-    wheelbase = siValue(PER27.wheelbase);
-    front_fraction = PER27.front_weight_fraction;
-    track = siValue(PER27.track_width);
-    cg_height = siValue(PER27.cg_height);
-    total_inertia = {38.0, 110.0, siValue(PER27.yaw_inertia)};
-    radius = siValue(PER27_WHEEL.radius);
-    wheel_inertia = siValue(PER27_WHEEL.inertia);
-    spring = siValue(FRONT_COILOVER.spring_damper.stiffness);
-    damper = siValue(FRONT_COILOVER.spring_damper.damping);
-    bump_travel = model_data::travel_knots.back();
-    droop_travel = -model_data::travel_knots.front();
-    cornering_stiffness = siValue(DEFAULT_TIRE.lateral_stiffness);
-    longitudinal_stiffness = siValue(DEFAULT_TIRE.longitudinal_stiffness);
-    tire_shape = DEFAULT_TIRE.lateral_shape;
-    longitudinal_tire_shape = DEFAULT_TIRE.longitudinal_shape;
-    friction = RoadTire<ReducedMFTire>(DEFAULT_TIRE).default_coefficient();
-    cda = siValue(AE27.CDA);
-    cla = siValue(AE27.CLA);
-    cop_x = siValue(AE27.cop_offset_x);
-    air_density = siValue(AE27.air_density);
-    gear_efficiency = DT27.efficiency;
-    max_motor_torque = siValue(AMK_DD5.max_torque);
-    motor_knee_rpm = siValue(AMK_DD5.knee_speed) * 60 / (2 * pi);
-    max_steering = std::min(-model_data::steering_samples.front(), model_data::steering_samples.back());
-    if (std::abs(model_data::reference_chassis_center[0] + siValue(PER27.front_distance())) > 1e-9 ||
-        std::abs(model_data::reference_chassis_center[2] - cg_height) > 1e-9 ||
-        std::abs(model_data::reference_wheel_centers[1] + track / 2) > 1e-9 ||
-        std::abs(model_data::reference_wheel_centers[2] - radius) > 1e-9 ||
-        std::abs(model_data::reference_wheel_centers[6] + wheelbase) > 1e-9)
-        throw std::runtime_error("Source suspension table does not match PER27 geometry; regenerate it in modeling-and-simulation");
-}
-
 /** @brief Unit-safe source objects, stable sensor mounts, and per-plant PRNG. */
 struct ModelComponents::Impl {
     Parameters parameters;       ///< SI adapter configuration.
@@ -178,7 +116,7 @@ struct ModelComponents::Impl {
     SpringDamper front_shock;     ///< Source front shock spring/damper.
     SpringDamper rear_shock;      ///< Source rear shock spring/damper.
     VerticalTire vertical;        ///< Source unilateral contact model.
-    TireVariant tire;            ///< Source tangential contact implementation.
+    std::unique_ptr<TireModel> tire; ///< Selected source tangential model.
     Aero aerodynamic;            ///< Source aero force and COP.
     ThrottleMap throttle;        ///< Explicit standalone pedal map.
     std::mt19937 generator{0};   ///< Deterministic sensor-noise stream.
@@ -196,7 +134,7 @@ struct ModelComponents::Impl {
           front_shock({stiffness(p.spring), damping(p.damper)}),
           rear_shock({REAR_COILOVER.spring_damper.stiffness * (p.spring / siValue(FRONT_COILOVER.spring_damper.stiffness)),
                       REAR_COILOVER.spring_damper.damping * (p.damper / siValue(FRONT_COILOVER.spring_damper.damping))}),
-          vertical({{stiffness(p.tire_stiffness), damping(p.tire_damping)}}), tire(make_tire(p)),
+          vertical({{stiffness(p.tire_stiffness), damping(p.tire_damping)}}), tire(make_tire_model(p.tire, p)),
           aerodynamic({area(p.cda), area(p.cla), density(p.air_density), length(p.cop_x)}),
           throttle(motor.maxWheelTorque()),
           imu_mount{displacement3d(0, 0, 0), Quat(Eigen::AngleAxisd(-pi / 2, Vec3::UnitZ()) * Eigen::AngleAxisd(2.2689280276, Vec3::UnitX()))},
@@ -282,7 +220,7 @@ double ModelComponents::normal_force(double compression, double rate) const {
     return siValue(impl_->vertical.evaluate({length(compression), speed(rate)}));
 }
 Eigen::Vector2d ModelComponents::tire_force(double alpha, double kappa, double load, double road_grip) {
-    return std::visit([&](auto& tire) { return tire.evaluate(alpha, kappa, load, impl_->parameters.friction * road_grip); }, impl_->tire);
+    return impl_->tire->force(alpha, kappa, load, impl_->parameters.friction * road_grip);
 }
 double ModelComponents::tread_speed(double omega) const {
     return siValue(impl_->wheel.surfaceSpeed({angularSpeed(omega)}));

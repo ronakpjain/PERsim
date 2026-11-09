@@ -22,31 +22,9 @@ Eigen::Matrix3d skew(const Vec3& v) {
     m << 0, -v.z(), v.y(), v.z(), 0, -v.x(), -v.y(), v.x(), 0;
     return m;
 }
-/** @brief Smooth half-cosine window with flat support and zero endpoints. */
-double window(double v, double begin, double end, double edge) {
-    if (v <= begin || v >= end) return 0.0;
-    const double t = std::min({(v - begin) / edge, (end - v) / edge, 1.0});
-    return 0.5 - 0.5 * std::cos(pi * t);
 }
-/** @brief Analytic road height in metres for the proving-ground profile. */
-double height_at(double x, double y, TerrainKind kind) {
-    if (kind == TerrainKind::flat) return 0.0;
-    const double strip = window(y, -14.0, -6.0, 1.0);
-    const double bump = 0.065 * window(x, 18.0, 22.0, 2.0);
-    const double ramp = 0.4 * window(x, 35.0, 53.0, 7.0);
-    const double ripple = 0.025 * window(x, 58.0, 80.0, 2.0) * (1.0 + std::sin(x * 3.0));
-    return strip * (bump + ramp + ripple);
-}
-}
-Surface surface_at(double x, double y, TerrainKind kind) {
-    constexpr double e = 0.001;
-    Vec3 normal{-(height_at(x + e, y, kind) - height_at(x - e, y, kind)) / (2 * e),
-                -(height_at(x, y + e, kind) - height_at(x, y - e, kind)) / (2 * e), 1.0};
-    const double grip = kind == TerrainKind::proving_ground && x > 25 && x < 45 && y > 6 && y < 14 ? 0.45 : 1.0;
-    return {height_at(x, y, kind), normal.normalized(), grip};
-}
-Vehicle::Vehicle(Parameters parameters, TerrainKind terrain)
-    : parameters_(std::move(parameters)), models_(parameters_), terrain_(terrain) {
+Vehicle::Vehicle(Parameters parameters, const std::string& terrain)
+    : parameters_(std::move(parameters)), models_(parameters_), terrain_(make_terrain(terrain)) {
     const auto& p = parameters_;
     sprung_inertia_ = p.total_inertia.asDiagonal();
     for (int i = 0; i < 4; ++i) {
@@ -65,7 +43,7 @@ void Vehicle::reset(const Vec3& ground_position, double heading) {
     const auto& p = parameters_;
     state_ = {};
     state_.position = ground_position + Vec3(0, 0, p.cg_height
-        + surface_at(ground_position.x(), ground_position.y(), terrain_).height);
+        + terrain_->sample(ground_position.x(), ground_position.y()).height);
     state_.orientation = Quat(Eigen::AngleAxisd(heading, Vec3::UnitZ()));
     state_.rack_offset = models_.rack_offset(0);
     for (int i = 0; i < 4; ++i) state_.wheels[i].travel = -p.corner_mass(i) * gravity / p.tire_stiffness;
@@ -145,7 +123,7 @@ void Vehicle::step(const Actuators& actuators, double dt) {
 
         t.hub = state_.position + rotation * r;
         const Vec3 hub_velocity = rotation * (models_.point_velocity(body_velocity, omega, r) + relative_velocity);
-        const auto ground = surface_at(t.hub.x(), t.hub.y(), terrain_);
+        const auto ground = terrain_->sample(t.hub.x(), t.hub.y());
         const Vec3 world_axle = rotation * axle;
         const Vec3 radial_normal = ground.normal - world_axle * ground.normal.dot(world_axle);
         const double rolling_factor = radial_normal.norm();
@@ -195,7 +173,7 @@ void Vehicle::step(const Actuators& actuators, double dt) {
     for (double x : {-0.55, 0.55}) for (double y : {-0.25, 0.25}) {
         const Vec3 local(x, y, -p.cg_height + 0.055), offset = rotation * local;
         const Vec3 point = state_.position + offset;
-        const auto ground = surface_at(point.x(), point.y(), terrain_);
+        const auto ground = terrain_->sample(point.x(), point.y());
         const double penetration = ground.height - point.z();
         if (penetration <= 0) continue;
         const Vec3 velocity = state_.velocity + world_omega.cross(offset);
@@ -252,7 +230,7 @@ double Vehicle::energy() const {
         energy += 0.5 * p.wheel_inertia * spin * spin + models_.shock_energy(i, geometry.shock_length);
         const double stop = std::max({w.travel - p.bump_travel, -p.droop_travel - w.travel, 0.0});
         energy += 0.5 * p.stop_stiffness * stop * stop;
-        const auto ground = surface_at(hub.x(), hub.y(), terrain_);
+        const auto ground = terrain_->sample(hub.x(), hub.y());
         const double factor = std::sqrt(std::max(0.0, 1 - std::pow((rotation * axle).dot(ground.normal), 2)));
         const double penetration = std::max(0.0, p.radius * factor - (hub.z() - ground.height) * ground.normal.z());
         energy += 0.5 * p.tire_stiffness * penetration * penetration;
