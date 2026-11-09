@@ -1,148 +1,124 @@
-# Architecture, firmware devices, and timing {#timing_model}
+# Architecture and timing {#timing_model}
 
 @tableofcontents
 
-## Ownership and data flow
+## Ownership
 
 ```text
 keyboard / scripted driver
-        |
         +-> dashboard ADC + start GPIO -> real dashboard firmware
-        +-> physical steering actuator -> LWS CAN
-        +-> physical mechanical brakes
-                                              |
-vehicle / inverter / battery sensors --------> FIL firmware world
-                                              |
-                     main-module AMK SET CAN --+
-                              |
-                 timed inverter device response
-                              |
-                    14-DOF physical plant
-                              |
-                     next sensor observation
+        +-> steering actuator -> LWS CAN
+        +-> mechanical brakes
+vehicle / inverter / battery sensors -> FIL firmware world
+        -> main-module AMK SET CAN -> timed inverter response
+        -> 14-DOF physical plant -> next sensor observation
 ```
 
-Session owns one Vehicle, one Powertrain, and (unless explicitly standalone)
-one FilBridge. The headless frontend steps the session directly. The raylib
-frontend uses one POSIX worker with an **8 MiB stack**; FIL's memory-map
-construction can exceed macOS's default 512 KiB pthread stack. The render
-thread publishes controls and copies Snapshot values under a mutex. It never
-calls FIL or modifies physics.
+`Session` owns one `Vehicle`, one `Powertrain`, and (unless `--standalone`) one
+`FilBridge`. Headless steps the session directly. The raylib viewer uses one
+POSIX worker with an **8 MiB stack** because FIL's memory map can exceed macOS's
+512 KiB pthread default. The render thread exchanges controls and `Snapshot`
+values under a mutex; it never calls FIL or touches physics.
 
-Pause stops simulated time. Reset reconstructs both plant and firmware;
-the viewer creates a numbered CSV file for each subsequent run. A slow
-renderer does not discard physics time. A slow firmware backend slows the
-simulation rather than silently jumping forward.
+Pause stops simulated time. Reset rebuilds plant and firmware. A slow renderer
+does not discard physics time, and a slow firmware backend slows the simulation
+instead of silently jumping forward.
 
-## Causal control intervals
+## Causal control interval
 
 1. Sample the physical state at shared time T.
 2. Apply ADC/GPIO inputs and queue due external-device CAN reports.
 3. Advance FIL for a bounded 5 ms shared-time interval.
-4. Collect AMK frames at **CAN EOF/delivery timestamps**, not admission or SOF.
-5. Advance the physical plant up to each delivery with the old command.
-6. Apply that command to its inverter; continue through the remaining interval.
-7. Publish the observation and use it for the next input sample.
+4. Collect AMK frames at **CAN EOF/delivery timestamps**.
+5. Advance the plant to each delivery using the previous command.
+6. Apply that command to its inverter; continue through the interval.
+7. Publish the observation for the next input sample.
 
-Inputs are zero-order held across the firmware slice. The resulting maximum
-feedback coupling delay is one control interval, in addition to modeled bus,
-firmware task, and device delays. Commands are not applied retroactively to
-the start of a slice. Physics substeps never exceed 0.5 ms.
+Inputs are zero-order held across the slice, so feedback coupling adds at most
+one control interval plus bus, task, and device delays. Commands are never
+applied retroactively. Physics substeps never exceed 0.5 ms.
 
-The firmware shared clock may overshoot a deadline within a bounded window;
-PERsim rejects an overrun above 100 µs and advances physics to the actual end
-time. FIL's current parallel scheduler itself uses bounded-skew owner slices,
-not cycle-exact multi-board lockstep. Strict MMIO and ADC decimation 1 are
-used. Guarded RAM-capsule replay is disabled because cycle-exact real-firmware
-network replay is not established. This does not make FIL cycle-accurate hardware.
+The firmware shared clock may overshoot a deadline; PERsim rejects an overrun
+above 100 µs and advances physics to the actual end time. FIL's parallel
+scheduler uses bounded-skew owner slices, not cycle-exact multi-board lockstep.
+MMIO is strict and ADC decimation is 1. Guarded RAM-capsule replay is disabled.
+FIL is not cycle-accurate hardware.
 
-## Wiring generation and firmware ownership
+## Wiring and firmware ownership
 
 `tools/generate_network.py` reads the monorepo's
-`generators/configs/system/bus_configs.json` and current node files. It writes
-build-local FIL board/network JSON referencing the actual monorepo ELF images
-and FIL's STM32G474 MCU definition. It does **not** reuse FIL's older example
-PER controller assignments.
+`generators/configs/system/bus_configs.json` and current node files, then writes
+build-local FIL board/network JSON pointing at the real ELF images and FIL's
+STM32G474 MCU definition. It does not reuse FIL's older example assignments.
 
-| Board | Current controller connections |
+| Board | Controller connections |
 |---|---|
 | Main module | FDCAN1 → VCAN (0), FDCAN2 → MCAN (1) |
 | Dashboard | FDCAN2 → VCAN (0), FDCAN3 → SCAN (3) |
 | Torque vector | FDCAN2 → VCAN (0), FDCAN1 → SCAN (3) |
 | Front / rear driveline | FDCAN1 → SCAN (3) |
 
-The build consumes the versioned SuperDBC JSON to generate selected signal
-descriptors. It implements both Intel and Motorola bit order; there is no
-second hand-maintained list of signal offsets. If there is not exactly one
-versioned JSON, select it with `PERSIM_SUPERDBC`.
+The build generates signal descriptors from the versioned SuperDBC JSON,
+including Intel and Motorola bit order. Select a specific file with
+`PERSIM_SUPERDBC` if the directory does not contain exactly one.
 
 The default network has dashboard, main module, TV, and both drivelines.
-**a_box is deliberately absent**: the plant owns the pack/BMS CAN reports,
-rather than competing with an emulated battery-monitor firmware/SPI chain.
-CCAN and charging hardware are not modeled. User network configs containing
-a_box or timed stimulus scripts are rejected. In external-TV mode only the
-STM32 torque-vector board is removed; main-module safety and AMK command
-generation remain real firmware.
+**a_box is absent** because the plant owns pack/BMS reports. CCAN and charging
+hardware are not modeled, and configs containing a_box or timed stimuli are
+rejected. External-TV mode removes only the STM32 torque-vector board.
 
-## Sensor/device map
+## Devices
 
-| Physical quantity | Interface | Nominal update |
+| Quantity | Interface | Period |
 |---|---|---:|
-| APPS 1 / APPS 2 | dashboard ADC1 channels 8 / 7 | each 5 ms slice |
-| Regen / brake (harness-swapped firmware inputs) | dashboard ADC1 channels 2 / 9 | 5 ms |
+| APPS 1 / APPS 2 | dashboard ADC1 ch 8 / 7 | 5 ms |
+| Regen / brake (harness-swapped) | dashboard ADC1 ch 2 / 9 | 5 ms |
 | Start button | dashboard PB14, active-low | 5 ms |
-| SDC mux output | main-module PB9 held high, all mux selections closed | initial constant |
-| Precharge incomplete | main-module PC4, high until modeled HV bus reaches 95% terminal voltage | 5 ms |
-| Shockpot channels | source linkage shock lengths → front/rear ADC3 ch5, ADC4 ch3; front harness swap included | 5 ms |
-| Steering-wheel angle / validity | LWS_Standard on VCAN | 10 ms |
-| Pack voltage/current | pack_analog on VCAN | 10 ms |
-| Gyro / accelerometer | IZZE_angular_rate / IZZE_acceleration, VCAN | 50 ms |
-| Pack summary | pack_bms on VCAN | 200 ms |
-| Actual rotor speed/torque | AMK CRIT on MCAN | 15 ms |
-| Inverter status/DC voltage/temperatures | AMK INFO/TEMPS on MCAN | 500 ms |
-| GPS NAV-PVT + RELPOSNED | TV USART3 byte stream | 200 ms |
-| User TV request | vcu_driver_request, AUTOCROSS mode, 50% gains | 200 ms |
+| SDC mux output | main-module PB9 high, all selections closed | constant |
+| Precharge incomplete | main-module PC4 until 95% HV bus | 5 ms |
+| Shockpots | source shock lengths → ADC3 ch5 / ADC4 ch3 | 5 ms |
+| Steering angle / validity | LWS_Standard, VCAN | 10 ms |
+| Pack voltage / current | pack_analog, VCAN | 10 ms |
+| Gyro / accelerometer | IZZE angular rate / acceleration, VCAN | 50 ms |
+| Pack summary | pack_bms, VCAN | 200 ms |
+| Rotor speed / torque | AMK CRIT, MCAN | 15 ms |
+| Inverter status / DC / temps | AMK INFO/TEMPS, MCAN | 500 ms |
+| GPS NAV-PVT + RELPOSNED | TV USART3 | 200 ms |
+| TV driver request | vcu_driver_request, AUTOCROSS, 50% gains | 200 ms |
 
-Scheduling occurs at control boundaries; these are nominal report periods,
-not a promise of oscillator-exact external-device clocks. The actual physical
-steering angle, not an instantaneous key press, drives the LWS report.
-The plant uses left-positive steering. LWS therefore reports positive degrees
-for a physical left turn: `control_loop.c` negates that signal to produce the
-VCU's **right-positive** `ST_RAW`, as specified by `vcu/vcu_interface.md`.
-The VCU also negates body-Z gyro to obtain right-positive yaw rate.
+These are nominal report periods, not oscillator-exact device clocks.
 
-Pedal calibration reproduces `dashboard/pedals/pedals.c`: APPS1 200..710,
-inverted APPS2 3320..3470, regen 2550..3000, and brake 450..1300. A brake
-demand drives both the mechanical brakes and the two firmware brake/regen
-inputs. This is a simulator input mapping, not a calibrated pedal hydraulic model.
+Pedal encoding reproduces `dashboard/pedals/pedals.c`: APPS1 200..710,
+inverted APPS2 3320..3470, regen 2550..3000, brake 450..1300. Brake demand
+drives both the mechanical brakes and the firmware regen/brake inputs. This is
+an input mapping, not a hydraulic calibration.
 
-The source IMU samples use a RigidMount3D with the exact mounting rotation in
-`torque_vector/sensors/imu.c`. Encoded gyro is degrees/s; acceleration is g.
-The source model evaluates conventional specific force `a-g`. The IZZE CAN
-encoder negates only this accelerometer result to match the captured device's
-`g-a` convention: an upright stationary car reports **-1 g on body Z** after
-firmware transformation. Gyro is not negated by this adaptation. Plant truth
-and CSV `ax/ay/az` remain conventional body specific force, with +g on upright
-stationary Z in m/s²; they are not literal IZZE report values. Optional noise
-is applied by the source sensor model before wire quantization. See
-@ref captured_data for the sign evidence and historical report-rate differences.
+The plant is left-positive. LWS reports positive degrees for a physical left
+turn, and `control_loop.c` negates it into the VCU's right-positive `ST_RAW`.
+The VCU also negates body-Z gyro for right-positive yaw rate.
 
-The source GPS supplies mounted rover position/velocity and base-to-rover
-baseline, with optional seeded noise. UBX encoding uses a fixed synthetic
-georeference and UTC epoch: world X maps north and Y maps west. The 100-byte
-NAV-PVT and 72-byte NAV-RELPOSNED packets match the firmware's cyclic DMA buffer.
-Satellites, RF, ambiguity resolution, and PPS are not modeled.
+Source IMU samples use the firmware's exact mounting rotation. The source model
+produces conventional specific force `a-g`; the IZZE encoder negates only the
+accelerometer so an upright stationary car reports **-1 g body Z** after firmware
+transformation. Gyro polarity, plant truth, and CSV `ax/ay/az` remain
+conventional +9.81 m/s² specific force. Optional noise is applied before CAN
+quantization. See [historical captures](data.md).
 
-## Startup and failure behavior
+GPS uses mounted rover position/velocity and base-to-rover baseline with an
+optional seeded-noise model. UBX encoding uses a fixed synthetic georeference
+(world X north, Y west) and UTC epoch. The 100-byte NAV-PVT and 72-byte
+NAV-RELPOSNED packets match the firmware DMA buffer. Satellites, RF,
+ambiguity resolution, and PPS are not modeled.
 
-The modeled pack precharges its HV bus, then AMK status responds to real
-main-module SET flags. Automatic startup holds the brake, pulses PB14 at
-1.5..1.65 s, and lets the real vehicle FSM run its buzzer before entering R2D.
-Driver throttle is suppressed before R2D; no firmware variables are patched.
+## Startup and failure
 
-Missing images, unsupported MMIO/instructions surfaced by FIL, non-monotonic
-actuator events, queue admission failure, invalid dynamics, and time overruns
-stop the session visibly. There is no automatic standalone fallback. A guest
-TCP disconnect is separately visible; firmware's own stale-TV behavior may
-fall back to its direct pedal map. Do not mistake a missing TV connection for
-a guaranteed all-vehicle shutdown.
+The pack precharges, then AMK status follows real main-module SET flags.
+Automatic startup holds the brake, pulses PB14 at 1.5..1.65 s, and lets the
+vehicle FSM run its buzzer before R2D. Throttle is suppressed before R2D; no
+firmware variables are patched.
+
+Missing images, unsupported MMIO/instructions, non-monotonic events, queue
+failures, invalid dynamics, and time overruns stop the session visibly. There is
+no automatic standalone fallback. A guest TCP disconnect is visible, but the
+firmware's stale-TV policy may fall back to its direct pedal map; do not treat a
+missing TV connection as an emergency stop.
