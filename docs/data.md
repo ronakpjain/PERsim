@@ -1,6 +1,4 @@
-# Historical captures {#captured_data}
-
-@tableofcontents
+# Historical captures
 
 `data/PER26/` holds historical PER26 logs from June and September 2026. They
 corroborate device conventions and expose implausible assumptions; they do **not**

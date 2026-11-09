@@ -30,7 +30,7 @@ struct Snapshot {
  * @details Sensors are sampled at the beginning of each 5 ms slice. Delivered
  * AMK commands split physical integration at their actual CAN delivery times;
  * no future command is applied retroactively.
- * @see timing_model
+ * See docs/architecture.md.
  */
 class Session {
 public:

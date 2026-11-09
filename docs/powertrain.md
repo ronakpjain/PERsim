@@ -1,6 +1,4 @@
-# Powertrain {#inverter_model}
-
-@tableofcontents
+# Powertrain
 
 `Powertrain` models the **other side** of the main module's AMK interface: four
 inverter responders, torque delivery, the HV bus, and an equivalent pack. It
@@ -31,7 +29,7 @@ Firmware setpoint and limit words are **parts per thousand of nominal motor
 torque** (9.8 Nm). SuperDBC scales fields by 0.1, so decoded values look like
 percent. The device applies
 
-\f[ T_{shaft}=9.8\,\mathrm{Nm}\;\frac{raw}{1000}. \f]
+$$ T_{shaft}=9.8\,\mathrm{Nm}\;\frac{raw}{1000}. $$
 
 Raw 2100 requests 20.58 Nm; default limits 2140/-500 are 20.972/-4.9 Nm. Do not
 read decoded 214 as 214 Nm.
@@ -54,9 +52,9 @@ there is no motor-speed servo forcing a wheel speed.
 
 ## Electrical and thermal estimates
 
-The pack starts at 80% SOC with \f$V_{oc}=380+100\,SOC\f$ V, 6 kWh usable, and
+The pack starts at 80% SOC with $V_{oc}=380+100\,SOC$ V, 6 kWh usable, and
 0.08 Ω series resistance. Electrical power includes shaft power at 95%
-efficiency, estimated copper loss \f$0.45T^2\f$, speed loss \f$10^{-6}rpm^2\f$,
+efficiency, estimated copper loss $0.45T^2$, speed loss $10^{-6}rpm^2$,
 and 20 W per active inverter. Terminal voltage includes the resistive drop; SOC
 integrates electrical energy and is bounded to [0,1].
 

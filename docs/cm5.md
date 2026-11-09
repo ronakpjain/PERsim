@@ -1,6 +1,4 @@
-# CM5 CAN bridge {#cm5_bridge}
-
-@tableofcontents
+# CM5 CAN bridge
 
 The virtualized CM5 torque-vector application talks to PERsim over a raw CAN
 link. The Yoctocoupler image already provides SocketCAN `vcan0`; the supplied

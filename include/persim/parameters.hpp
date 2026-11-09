@@ -24,7 +24,7 @@ inline constexpr std::array<const char*, 4> wheel_names{"FR", "FL", "RL", "RR"};
 
 /** @brief SI-valued geometry, component constants, and model selection.
  * @details Presets are read directly from modeling-and-simulation. Source
- * components and explicit overrides are distinguished in @ref reused_models. ISO 8855: +X forward, +Y left, +Z up.
+ * components and explicit overrides are distinguished in docs/models.md. ISO 8855: +X forward, +Y left, +Z up.
  */
 struct Parameters {
     /** @brief Load source PER27, tire, wheel, coilover, AMK, and aero presets. */

@@ -46,7 +46,7 @@ struct GpsMeasurement {
  * @details No copied tire/aero/spring/motor equations. Keeps mp-units out of
  * firmware/rendering interfaces; SI quantities are constructed at this boundary.
  * Sensor sampling owns a deterministic PRNG, independent of firmware execution.
- * @see reused_models
+ * See docs/models.md.
  */
 class ModelComponents {
 public:

@@ -39,7 +39,7 @@ struct BatteryState {
  * @details Receives firmware-produced SET frames at their CAN delivery times.
  * Outputs actual speed/torque, status acknowledgments, DC voltage, and temperatures.
  * No driver-to-torque shortcut exists in this model.
- * @see inverter_model
+ * See docs/powertrain.md.
  */
 class Powertrain {
 public:

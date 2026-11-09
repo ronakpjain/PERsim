@@ -1,6 +1,4 @@
-# Architecture and timing {#timing_model}
-
-@tableofcontents
+# Architecture and timing
 
 ## Ownership
 

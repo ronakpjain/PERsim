@@ -1,7 +1,5 @@
 # Adding models
 
-@tableofcontents
-
 Model choices are name-based registries, so a new implementation is one class
 plus one table row. The CLI, help text, errors, and `--list-models` all read the
 same registry.

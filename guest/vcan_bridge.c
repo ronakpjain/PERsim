@@ -3,7 +3,7 @@
  * @brief Linux SocketCAN to PERsim PCAN/TCP gateway for the Yoctocoupler guest.
  * @details One TCP connection multiplexes up to three explicitly mapped classic
  * CAN interfaces. SocketCAN already supplies the kernel interface; no custom
- * kernel driver is involved. See the Doxygen page @ref cm5_bridge.
+ * kernel driver is involved. See docs/cm5.md for the bridge protocol.
  */
 /** @brief Request POSIX.1-2008 libc interfaces. */
 #define _POSIX_C_SOURCE 200809L

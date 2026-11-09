@@ -1,4 +1,4 @@
-# Scope and limitations {#validation}
+# Scope and limitations
 
 PERsim is an uncalibrated engineering prototype, not a validated digital twin.
 

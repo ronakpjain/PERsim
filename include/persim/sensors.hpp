@@ -20,7 +20,7 @@ std::array<std::uint16_t, 4> pedal_adc(const DriverInput& input);
  * IZZE acceleration reports the negative of source specific force (g-a),
  * matching historical captures: stationary body Z is -1 g after firmware
  * mounting compensation. Gyro polarity and plant/CSV specific force (a-g)
- * are unchanged. See @ref captured_data for the supporting observations.
+ * are unchanged. See docs/data.md for the supporting observations.
  * @param car Pose, angular rate, actual steering angle, and IMU specific force.
  * @param powertrain Terminal voltage, current, and equivalent pack temperature.
  * @param imu Include IZZE gyro/accelerometer reports.

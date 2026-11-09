@@ -1,6 +1,4 @@
-# Physical model {#vehicle_model}
-
-@tableofcontents
+# Physical model
 
 PERsim is an uncalibrated engineering prototype. Source presets supply geometry
 and component behavior; values marked *estimate* are not measured PER27 data.
@@ -19,19 +17,19 @@ actuator. Wheel order is **FR/FL/RL/RR**.
 
 ## Coupled mass matrix
 
-For body position \f$p\f$, rotation \f$R\f$, and body rate \f$\omega\f$, source
-suspension splines give the wheel-centre offset \f$r_i(q_i,u)\f$ for bump
-\f$q_i\f$ and rack \f$u\f$:
+For body position $p$, rotation $R$, and body rate $\omega$, source
+suspension splines give the wheel-centre offset $r_i(q_i,u)$ for bump
+$q_i$ and rack $u$:
 
-\f[
+$$
 p_i=p+Rr_i,\qquad
 v_i=v+R(\omega\times r_i+r_{i,q}\dot q_i+r_{i,u}\dot u).
-\f]
+$$
 
 With generalized velocity
-\f$\nu=[v,\omega,\dot q_1..\dot q_4,\dot\theta_1..\dot\theta_4]\f$, each hub
-Jacobian is \f$J_i=[I,\;-R[r_i]_\times,\;Rr_{i,q}e_i^T,\;0]\f$. The mass matrix
-sums sprung-body translation/inertia, unsprung point masses \f$m_iJ_i^TJ_i\f$,
+$\nu=[v,\omega,\dot q_1..\dot q_4,\dot\theta_1..\dot\theta_4]$, each hub
+Jacobian is $J_i=[I,\;-R[r_i]_\times,\;Rr_{i,q}e_i^T,\;0]$. The mass matrix
+sums sprung-body translation/inertia, unsprung point masses $m_iJ_i^TJ_i$,
 and wheel axial-inertia outer products. A positive-definite LDLT solve yields
 the accelerations. The known acceleration bias includes centripetal, Coriolis,
 path-curvature, mixed, and prescribed-rack terms; see `src/vehicle.cpp`.
@@ -43,12 +41,12 @@ transverse wheel/upright inertia are not modeled.
 ## Suspension
 
 Source `SpringDamper` and coilover presets evaluate force along increasing
-shock length \f$L_i(q_i,u)\f$:
+shock length $L_i(q_i,u)$:
 
-\f[
+$$
 F_{L_i}=-k_i(L_i-L_{ref,i})-c_i\dot L_i,\qquad
 Q_{q_i}=L_{i,q}F_{L_i}.
-\f]
+$$
 
 Reference lengths are 0.1955/0.1970 m; stops use 0.200 m maximum and 0.057 m
 stroke. Soft stops bound the spline domain. Reset runs a damped relaxation, so
@@ -68,9 +66,9 @@ a 1 m/s regularized denominator. Lateral slip is
 `atan2(-v_lateral, max(|v_forward|, 1 m/s))`. The default source `ReducedMFTire`
 uses
 
-\f[
+$$
 F=\mu F_z\sin\left(C\arctan\frac{Ks}{C\mu F_z}\right),
-\f]
+$$
 
 then saturates longitudinal force first and limits lateral force to the
 remaining friction circle. `tanh` and `linear` are registered alternatives with
@@ -90,9 +88,14 @@ synthetic Ackermann is added. Lock is limited to the source table, about ±7.9°
 
 Keyboard input ramps throttle at 1.6/s and release at 5/s; steering slews at
 2.5/s and recenters at 3.5/s. Keyboard steering is also bounded by the
-kinematic envelope \f$\delta_{key}=\min(\delta_{max},
-\arctan(L\,0.85\mu(g+F_{aero}/m)/\max(v_{XY}^2,1)))\f$. This is an input aid,
-not extra grip. Gamepad and headless inputs are direct.
+kinematic envelope
+
+$$
+\delta_{key}=\min\left(\delta_{max},
+\arctan\frac{L\,0.85\mu(g+F_{aero}/m)}{\max(v_{XY}^2,1)}\right).
+$$
+
+This is an input aid, not extra grip. Gamepad and headless inputs are direct.
 
 Source `Aero::getForce` and COP provide loads; reverse forward speed is clamped
 to zero as in the source. Four unilateral belly points prevent chassis ground

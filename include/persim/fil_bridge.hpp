@@ -30,7 +30,7 @@ struct FirmwareStatus {
  * @brief Own a real firmware network and inject plant-owned peripheral inputs.
  * @details Only the simulation thread may call this class. Scripted stimuli
  * and a_box are rejected to avoid competing sensor/battery publishers.
- * @see timing_model
+ * See docs/architecture.md.
  */
 class FilBridge {
 public:

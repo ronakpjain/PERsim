@@ -39,7 +39,7 @@ struct WheelState {
     double omega = 0.0;       ///< Spin relative to the upright, rad/s; positive drives forward.
     double phase = 0.0;       ///< Wrapped spin angle, rad, for display only.
 };
-/** @brief Integrated rigid-body and wheel state; see @ref vehicle_model. */
+/** @brief Integrated rigid-body and wheel state; see docs/model.md. */
 struct VehicleState {
     Vec3 position{0.0, 0.0, 0.271};       ///< Sprung-body reference position in world, m.
     Vec3 velocity = Vec3::Zero();         ///< Reference velocity in world, m/s.
@@ -77,7 +77,7 @@ struct VehicleTelemetry {
  * @details A coupled 14×14 mass matrix uses source suspension wheel paths and
  * axial spin inertia. Linkage Jacobians/Hessians and shock motion ratios are
  * evaluated every substep. Tire/aero/spring/motor forces use sibling components.
- * @see vehicle_model
+ * See docs/model.md.
  */
 class Vehicle {
 public:

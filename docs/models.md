@@ -1,6 +1,4 @@
-# Reused models and overrides {#reused_models}
-
-@tableofcontents
+# Reused models and overrides
 
 PERsim compiles components from the sibling
 [modeling-and-simulation](https://github.com/PurdueElectricRacing/modeling-and-simulation) checkout selected by

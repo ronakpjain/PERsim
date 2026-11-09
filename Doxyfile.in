@@ -1,16 +1,15 @@
 PROJECT_NAME = "PERsim"
 PROJECT_BRIEF = "PER27 3D vehicle plant, AMK devices, FIL firmware, and CM5 CAN bridge"
 OUTPUT_DIRECTORY = "@CMAKE_CURRENT_BINARY_DIR@/docs"
-INPUT = "@CMAKE_CURRENT_SOURCE_DIR@/README.md" \
-        "@CMAKE_CURRENT_SOURCE_DIR@/include" \
+# API reference only. User documentation is plain Markdown in docs/.
+INPUT = "@CMAKE_CURRENT_SOURCE_DIR@/include" \
         "@CMAKE_CURRENT_SOURCE_DIR@/src" \
-        "@CMAKE_CURRENT_SOURCE_DIR@/docs" \
+        "@CMAKE_CURRENT_SOURCE_DIR@/docs/groups.dox" \
         "@CMAKE_CURRENT_SOURCE_DIR@/guest/vcan_bridge.c" \
         "@CMAKE_CURRENT_SOURCE_DIR@/tools"
-FILE_PATTERNS = *.hpp *.cpp *.c *.md *.py *.dox
+FILE_PATTERNS = *.hpp *.cpp *.c *.py *.dox
 RECURSIVE = YES
 EXCLUDE_PATTERNS = */__pycache__/* *.in
-USE_MDFILE_AS_MAINPAGE = "@CMAKE_CURRENT_SOURCE_DIR@/README.md"
 EXTRACT_ALL = NO
 EXTRACT_PRIVATE = NO
 EXTRACT_STATIC = YES

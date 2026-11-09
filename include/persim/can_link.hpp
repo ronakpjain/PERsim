@@ -14,7 +14,7 @@ namespace persim {
  * @details No background thread mutates FIL. Unknown protocol records or a full
  * output buffer disconnect the peer and expose a diagnostic, rather than
  * silently dropping queued traffic. Absent peers do not accumulate history.
- * @see cm5_bridge
+ * See docs/cm5.md.
  */
 class CanLink {
 public:

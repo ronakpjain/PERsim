@@ -56,7 +56,7 @@ bool matches(const Message& message, const CanFrame& frame);
 /** @brief Version-1 PCAN record length, independent of host struct layout. */
 inline constexpr std::size_t wire_frame_size = 20;
 /** @brief Serialize one record; validate standard ID, bus, and classic payload length.
- * @see cm5_bridge
+ * See docs/cm5.md.
  */
 std::array<std::uint8_t, wire_frame_size> encode_wire(const CanFrame& frame);
 /** @brief Parse a complete record; reject unknown magic, version, flags, bus, or size.
